@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <math.h>
 
 static char *shift(int *argc, char ***argv)
 {
@@ -17,23 +18,18 @@ static char *shift(int *argc, char ***argv)
 }
 
 uint8_t *convertToInt(uint8_t *bytes, int size) {
-    uint8_t *intL = malloc(size);
+    uint8_t *intL = malloc(size * sizeof(uint8_t));
     for(int i = 0; i < size; i++) {
         intL[i] = (int)bytes[i];
     }
     return intL;
 }
 
-uint8_t *parseB(int bytes, FILE** f) {
-    uint8_t *buffer = malloc(bytes);
-    fread(buffer, sizeof(buffer[0]), bytes, *f);
-    return buffer;
-}
-
 void printBytes(uint8_t* bytes, int size, int likeHex) {
     if(likeHex) printf("0x");
     for(int i = 0; i < size; i++) {
         if(likeHex) {
+            if(bytes[i] < 15) putc('0', stdout);
             printf("%x", bytes[i]);
         } else {
             putc((char)bytes[i], stdout);
@@ -41,11 +37,45 @@ void printBytes(uint8_t* bytes, int size, int likeHex) {
     }
 }
 
+uint8_t *parseB(int8_t bytes, FILE** f) {
+    uint8_t *buffer = malloc(bytes * sizeof(uint8_t));
+    int ret = fread(buffer, sizeof(buffer[0]), bytes, *f);
+    printf("[INFO] Read %i bytes, `", ret); printBytes(buffer, ret, 1); printf("`\n");
+    return buffer;
+}
+
 int compareBytes(uint8_t *bytes, char* s, int size) {
     for(int i = 0; i < size; i++) {
         if((int)bytes[i] != (int)s[i]) return 0;
     }
     return 1;
+}
+
+FILE *writeBytes(uint8_t* bytes, int64_t size, const char* path) {
+    FILE* f; fopen_s(&f, path, "ab+");
+    for(int i = 0; i < size; i++) {
+        putc(bytes[i], f);
+    }
+    printf("[INFO] Wrote %i bytes to %s, `", size, path); printBytes(bytes, size, 1); printf("`\n");
+    rewind(f);
+    return f;
+}
+
+char *bytesToString(uint8_t *bytes, int size) {
+    char *s = malloc(size * 2 + 1);
+    char *curr_ptr = s;
+    for(int i = 0; i < size; i++) {
+        sprintf(curr_ptr, "%02x", bytes[i]);
+        curr_ptr += 2;
+    }
+    s[size * 2 + 1] = '\0';
+    return s;
+}
+
+int64_t bytesToInt(uint8_t* bytes, int size) {
+    char *hex_s = bytesToString(bytes, size);
+    int64_t result = (int64_t)strtol(hex_s, NULL, 16);
+    return result;
 }
 
 #endif

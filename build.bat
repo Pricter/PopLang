@@ -11,3 +11,4 @@ SET compilerFlags=-w
 
 ECHO "Building %assembly%%..."
 clang %cFilenames% %compilerFlags% -o .\bin\%assembly%.exe
+del bin\test.ppopd
