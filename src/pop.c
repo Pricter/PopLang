@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "utils.h"
+#include <sys/timeb.h>
 
 #define MAX_STACK_SIZE 1024 * 1024  
 int64_t *stack;
@@ -13,6 +14,8 @@ enum {
     OP_DUMP = 3,
     OP_ADD = 4,
     OP_SUB = 5,
+    OP_MUL = 6,
+    OP_DIV = 7,
 };
 
 #define parse2(f) bytesToInt(parseB(2, f), 2)
@@ -32,7 +35,7 @@ void execute(char *program, FILE** f) {
             int64_t pushNum = parse4(&pf);
             stack[stackPtr] = (int64_t)pushNum;
             stackPtr++; stackSize++;
-            printf("OP %i, size: %lld, OP Type: (PUSH %lld), stack size %lld, stack pointer %lld\n", i, opSize, pushNum, stackSize,
+            printf("\tOP %i, size: %lld, OP Type: (PUSH %lld), stack size %lld, stack pointer %lld\n", i, opSize, pushNum, stackSize,
                     (uint64_t)stackPtr);
             printStack(stack, stackSize);
         } else if(op == OP_POP) {
@@ -45,42 +48,40 @@ void execute(char *program, FILE** f) {
                 stack[stackSize - i] = 0;
                 stackPtr--; stackSize--;
             }
-            printf("OP %i, size: %lld, OP Type: (POP %lld), stack size %lld, stack pointer %lld\n", i, opSize, popNum, stackSize,
+            printf("\tOP %i, size: %lld, OP Type: (POP %lld), stack size %lld, stack pointer %lld\n", i, opSize, popNum, stackSize,
                     (uint64_t)stackPtr);
             printStack(stack, stackSize);
         } else if(op == OP_DUMP) {
-            printf("OP %i, size: %lld, OP Type: (DUMP %i), stack size %lld, stack pointer %lld\n", i, opSize, stack[stackPtr - 1], 
+            printf("\tOP %i, size: %lld, OP Type: (DUMP %i), stack size %lld, stack pointer %lld\n", i, opSize, stack[stackPtr - 1], 
                     stackSize, (uint64_t)stackPtr);
-            printStack(stack, stackSize);
-        } else if(op == OP_ADD) {
+        } else if(op == OP_ADD || op == OP_SUB || op == OP_MUL || op == OP_DIV) {
             if(stackSize < 2) {
-                fprintf(stderr, "[ERROR] Not enough stack members to perform ADD.");
+                fprintf(stderr, "[ERROR] Not enough stack members to perform op %i.", op);
                 printStack(stack, stackSize);
                 exit(1);
             }
             int64_t a = stack[stackPtr - 1]; stack[stackPtr - 1] = 0;
             int64_t b = stack[stackPtr - 2]; stack[stackPtr - 2] = 0;
             stackPtr--; stackSize--;
-            stack[stackPtr - 1] = a + b;
-            printf("OP %i, size: %lld, OP Type: (ADD %i + %i = %i), stack size %lld, stack pointer %lld\n", i, opSize, a, b, stack[stackPtr - 1],
-                    stackSize, (uint64_t)stackPtr);
-            printStack(stack, stackSize);
-        } else if(op == OP_SUB) {
-            if(stackSize < 2) {
-                fprintf(stderr, "[ERROR] Not enough stack members to perform SUB.");
-                printStack(stack, stackSize);
-                exit(1);
+            printf("\tOP %i, size: %lld, OP Type: ", i, opSize);
+            if(op == OP_ADD) {
+                stack[stackPtr - 1] = b + a;
+                printf("(ADD %i + %i = %i)", b, a, stack[stackPtr - 1]);
+            } else if(op == OP_SUB) {
+                stack[stackPtr - 1] = b - a;
+                printf("(SUB %i - %i = %i)", b, a, stack[stackPtr - 1]);
+            } else if(op == OP_MUL) {
+                stack[stackPtr - 1] = b * a;
+                printf("(MUL %i * %i = %i)", b, a, stack[stackPtr - 1]);
+            } else if(op == OP_DIV) {
+                stack[stackPtr - 1] = b / a;
+                printf("(DIV %i / %i = %i)", b, a, stack[stackPtr - 1]);
             }
-            int64_t a = stack[stackPtr - 1]; stack[stackPtr - 1] = 0;
-            int64_t b = stack[stackPtr - 2]; stack[stackPtr - 2] = 0;
-            stackPtr--; stackSize--;
-            stack[stackPtr - 1] = b - a;
-            printf("OP %i, size: %lld, OP Type: (SUB %i - %i = %i), stack size %lld, stack pointer %lld\n", i, opSize, a, b, stack[stackPtr - 1],
-                    stackSize, (uint64_t)stackPtr);
+            printf(", stack size %lld, stack pointer %lld\n", stackSize, (uint64_t)stackPtr);
             printStack(stack, stackSize);
         } else {
-            fprintf(stderr, "[ERROR] Invalid opcode %x", op);
-            exit(1);
+            fprintf(stderr, "[ERROR] Invalid opcode %x\n", op);
+            return;
         }
     }
 }
@@ -106,7 +107,16 @@ int main(int argc, char** argv) {
 
     stack = malloc(MAX_STACK_SIZE);
     stackSize = 0;
+
+    struct timeb start, end;
+    int diff;
+    int i = 0;
+    ftime(&start);
     execute(program, &f);
+    ftime(&end);
+    diff = (int) (1000.0 * (end.time - start.time)
+        + (end.millitm - start.millitm));
+    printf("[INFO] Executed in %u milliseconds\n", diff);
 
     fclose(f);
     return 0; 
