@@ -7,7 +7,7 @@ FOR /R %%f in (*.c) do (
 )
 
 SET assembly=popc
-SET compilerFlags=-w
+SET compilerFlags=-w -g
 
 ECHO "Building %assembly%%..."
 clang %cFilenames% %compilerFlags% -o .\bin\%assembly%.exe

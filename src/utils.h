@@ -7,6 +7,7 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
+#include <errno.h>
 
 static char *shift(int *argc, char ***argv)
 {
@@ -37,9 +38,14 @@ void printBytes(uint8_t* bytes, int size, int likeHex) {
     }
 }
 
-uint8_t *parseB(int8_t bytes, FILE** f) {
+uint8_t *parseB(uint64_t bytes, FILE** f) {
     uint8_t *buffer = malloc(bytes * sizeof(uint8_t));
     int ret = fread(buffer, sizeof(buffer[0]), bytes, *f);
+    if(ret < bytes) {
+        fprintf(stderr, "[ERROR] An error occured while %lld bytes, got %i bytes instead\n", bytes, ret);
+        fprintf(stderr, "[ERROR] %s", strerror(errno));
+        exit(1);
+    }
     printf("[INFO] Read %i bytes, `", ret); printBytes(buffer, ret, 1); printf("`\n");
     return buffer;
 }
@@ -76,6 +82,13 @@ int64_t bytesToInt(uint8_t* bytes, int size) {
     char *hex_s = bytesToString(bytes, size);
     int64_t result = (int64_t)strtol(hex_s, NULL, 16);
     return result;
+}
+
+void printStack(uint64_t *stack, uint64_t stackSize) {
+    printf("Stack:\n");
+    for(int i = 0; i < stackSize; i++) {
+        printf("\t%i, i: %i\n", stack[i], i);
+    }
 }
 
 #endif
