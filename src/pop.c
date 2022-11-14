@@ -16,69 +16,130 @@ enum {
     OP_SUB = 5,
     OP_MUL = 6,
     OP_DIV = 7,
+    OP_LOOP = 8,
 };
 
 #define parse2(f) bytesToInt(parseB(2, f), 2)
 #define parse4(f) bytesToInt(parseB(4, f), 4)
 
+void execPush(int64_t pushNum, int64_t opSize, int opI) {
+    stack[stackPtr] = (int64_t)pushNum;
+    stackPtr++; stackSize++;
+    #ifdef LOG
+    printf("\tOP %i, size: %lld, OP Type: (PUSH %lld), stack size %lld, stack pointer %lld\n", opI, opSize, pushNum, stackSize,
+            (uint64_t)stackPtr);
+    printStack(stack, stackSize);
+    #endif
+}
+
+void execPop(int64_t popNum, int64_t opSize, int opI) {
+    if(popNum > stackSize) {
+        fprintf(stderr, "[ERROR] Cannot pop %i elements from stack. stack has %i elements", popNum, stackSize);
+        exit(1);
+    }
+    for(int i = 1; i <= popNum; i++) {
+        stack[stackSize - i] = 0;
+        stackPtr--; stackSize--;
+    }
+    #ifdef LOG
+    printf("\tOP %i, size: %lld, OP Type: (POP %lld), stack size %lld, stack pointer %lld\n", opI, opSize, popNum, stackSize,
+            (uint64_t)stackPtr);
+    printStack(stack, stackSize);
+    #endif
+}
+
+void execMath(int op, int64_t opSize, int opI) {
+    if(stackSize < 2) {
+        fprintf(stderr, "[ERROR] Not enough stack members to perform op %i.", op);
+        printStack(stack, stackSize);
+        exit(1);
+    }
+    int64_t a = stack[stackPtr - 1]; stack[stackPtr - 1] = 0;
+    int64_t b = stack[stackPtr - 2]; stack[stackPtr - 2] = 0;
+    stackPtr--; stackSize--;
+    #ifdef LOG
+    printf("\tOP %i, size: %lld, OP Type: ", opI, opSize);
+    #endif
+    if(op == OP_ADD) {
+        stack[stackPtr - 1] = b + a;
+        #ifdef LOG
+        printf("(ADD %i + %i = %i)", b, a, stack[stackPtr - 1]);
+        #endif
+    } else if(op == OP_SUB) {
+        stack[stackPtr - 1] = b - a;
+        #ifdef LOG
+        printf("(SUB %i - %i = %i)", b, a, stack[stackPtr - 1]);
+        #endif
+    } else if(op == OP_MUL) {
+        stack[stackPtr - 1] = b * a;
+        #ifdef LOG
+        printf("(MUL %i * %i = %i)", b, a, stack[stackPtr - 1]);
+        #endif
+    } else if(op == OP_DIV) {
+        stack[stackPtr - 1] = b / a;
+        #ifdef LOG
+        printf("(DIV %i / %i = %i)", b, a, stack[stackPtr - 1]);
+        #endif
+    }
+    #ifdef LOG
+    printf(", stack size %lld, stack pointer %lld\n", stackSize, (uint64_t)stackPtr);
+    printStack(stack, stackSize);
+    #endif
+}
+
+void execLoop(int8_t *loopBytes, int64_t loopNum, int64_t opCount, int64_t totalSize) {
+    FILE *f = writeBytes(loopBytes, totalSize, "temp.popb");
+    for(int i = 0; i < loopNum; i++) {
+        for(int j = 0; j < opCount; j++) {
+            int64_t opSize = parse2(&f);
+            int64_t op = parse2(&f);
+            if(op == OP_PUSH) {
+                execPush(parse4(&f), opSize, j);
+            } else if(op == OP_POP) {
+                execPop(parse2(&f), opSize, j);
+            } else if(op == OP_DUMP) {
+                printf("\tOP %i, size: %lld, OP Type: (DUMP %i), stack size %lld, stack pointer %lld\n", j, opSize, stack[stackPtr - 1], 
+                        stackSize, (uint64_t)stackPtr);
+            } else if(op == OP_LOOP) {
+                int64_t loopNum = parse2(&f);
+                int64_t loopOpCount = parse2(&f); 
+                execLoop(parseB(opSize - 3, &f), loopNum, loopOpCount, opSize - 3);
+                printf("\tOP %i, size: %lld, OP Type: (LOOP %lld, %lld), stack size %lld, stack pointer %lld\n", j, opSize, loopNum, loopOpCount,
+                        stackSize, (uint64_t)stackPtr);
+                printStack(stack, stackSize);
+            } else {
+                fprintf(stderr, "[ERROR] Invalid opcode %x\n", op);
+                return;
+            }
+        }
+        rewind(f);
+    }
+}
+
 void execute(char *program, FILE** f) {
-    int stop = 0;
     uint8_t *opCount = parseB(4, f);
     uint8_t *toRead = parseB(4, f);
     int64_t toReadN = bytesToInt(toRead, 4);
     uint8_t *progB = parseB(toReadN, f);
-    FILE *pf = writeBytes(progB, toReadN, "..\\bin\\test.ppopd");
+    FILE *pf = writeBytes(progB, toReadN, "prog.popb");
     for(int i = 0; i < bytesToInt(opCount, 4); i++) {
         int64_t opSize = parse2(&pf);
         int64_t op = parse2(&pf);
         if(op == OP_PUSH) {
-            int64_t pushNum = parse4(&pf);
-            stack[stackPtr] = (int64_t)pushNum;
-            stackPtr++; stackSize++;
-            printf("\tOP %i, size: %lld, OP Type: (PUSH %lld), stack size %lld, stack pointer %lld\n", i, opSize, pushNum, stackSize,
-                    (uint64_t)stackPtr);
-            printStack(stack, stackSize);
+            execPush(parse4(&pf), opSize, i);
         } else if(op == OP_POP) {
-            int64_t popNum = parse2(&pf);
-            if(popNum > stackSize) {
-                fprintf(stderr, "[ERROR] Cannot pop %i elements from stack. stack has %i elements", popNum, stackSize);
-                exit(1);
-            }
-            for(int i = 1; i <= popNum; i++) {
-                stack[stackSize - i] = 0;
-                stackPtr--; stackSize--;
-            }
-            printf("\tOP %i, size: %lld, OP Type: (POP %lld), stack size %lld, stack pointer %lld\n", i, opSize, popNum, stackSize,
-                    (uint64_t)stackPtr);
-            printStack(stack, stackSize);
+            execPop(parse2(&pf), opSize, i);
         } else if(op == OP_DUMP) {
             printf("\tOP %i, size: %lld, OP Type: (DUMP %i), stack size %lld, stack pointer %lld\n", i, opSize, stack[stackPtr - 1], 
                     stackSize, (uint64_t)stackPtr);
         } else if(op == OP_ADD || op == OP_SUB || op == OP_MUL || op == OP_DIV) {
-            if(stackSize < 2) {
-                fprintf(stderr, "[ERROR] Not enough stack members to perform op %i.", op);
-                printStack(stack, stackSize);
-                exit(1);
-            }
-            int64_t a = stack[stackPtr - 1]; stack[stackPtr - 1] = 0;
-            int64_t b = stack[stackPtr - 2]; stack[stackPtr - 2] = 0;
-            stackPtr--; stackSize--;
-            printf("\tOP %i, size: %lld, OP Type: ", i, opSize);
-            if(op == OP_ADD) {
-                stack[stackPtr - 1] = b + a;
-                printf("(ADD %i + %i = %i)", b, a, stack[stackPtr - 1]);
-            } else if(op == OP_SUB) {
-                stack[stackPtr - 1] = b - a;
-                printf("(SUB %i - %i = %i)", b, a, stack[stackPtr - 1]);
-            } else if(op == OP_MUL) {
-                stack[stackPtr - 1] = b * a;
-                printf("(MUL %i * %i = %i)", b, a, stack[stackPtr - 1]);
-            } else if(op == OP_DIV) {
-                stack[stackPtr - 1] = b / a;
-                printf("(DIV %i / %i = %i)", b, a, stack[stackPtr - 1]);
-            }
-            printf(", stack size %lld, stack pointer %lld\n", stackSize, (uint64_t)stackPtr);
-            printStack(stack, stackSize);
+            execMath(op, opSize, i);
+        } else if(op == OP_LOOP) {
+            int64_t loopNum = parse2(&pf);
+            int64_t loopOpCount = parse2(&pf); 
+            execLoop(parseB(opSize - 3, &pf), loopNum, loopOpCount, opSize - 3);
+            printf("\tOP %i, size: %lld, OP Type: (LOOP %lld, %lld), stack size %lld, stack pointer %lld\n", i, opSize, loopNum, loopOpCount,
+                    stackSize, (uint64_t)stackPtr);
         } else {
             fprintf(stderr, "[ERROR] Invalid opcode %x\n", op);
             return;
@@ -112,12 +173,15 @@ int main(int argc, char** argv) {
     int diff;
     int i = 0;
     ftime(&start);
+    printf("Starting execution...\n");
+    printf("-------------------------------\n");
     execute(program, &f);
     ftime(&end);
     diff = (int) (1000.0 * (end.time - start.time)
         + (end.millitm - start.millitm));
     printf("[INFO] Executed in %u milliseconds\n", diff);
 
-    fclose(f);
-    return 0; 
+    fclose(f); 
+
+    return 0;
 }

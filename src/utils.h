@@ -46,7 +46,9 @@ uint8_t *parseB(uint64_t bytes, FILE** f) {
         fprintf(stderr, "[ERROR] %s", strerror(errno));
         exit(1);
     }
+    #ifdef LOG
     printf("[INFO] Read %i bytes, `", ret); printBytes(buffer, ret, 1); printf("`\n");
+    #endif
     return buffer;
 }
 
