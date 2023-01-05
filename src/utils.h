@@ -38,11 +38,11 @@ void printBytes(uint8_t* bytes, int size, int likeHex) {
     }
 }
 
-uint8_t *parseB(uint64_t bytes, FILE** f) {
+uint8_t *parseB(int bytes, FILE** f) {
     uint8_t *buffer = malloc(bytes * sizeof(uint8_t));
     int ret = fread(buffer, sizeof(buffer[0]), bytes, *f);
     if(ret < bytes) {
-        fprintf(stderr, "[ERROR] An error occured while %lld bytes, got %i bytes instead\n", bytes, ret);
+        fprintf(stderr, "[ERROR] An error occured while %d bytes, got %i bytes instead\n", bytes, ret);
         fprintf(stderr, "[ERROR] %s", strerror(errno));
         exit(1);
     }
@@ -59,8 +59,8 @@ int compareBytes(uint8_t *bytes, char* s, int size) {
     return 1;
 }
 
-FILE *writeBytes(uint8_t* bytes, int64_t size, const char* path) {
-    FILE* f; fopen_s(&f, path, "ab+");
+FILE *writeBytes(uint8_t* bytes, int size, const char* path) {
+    FILE* f = fopen(path, "ab+");
     for(int i = 0; i < size; i++) {
         putc(bytes[i], f);
     }
@@ -86,11 +86,14 @@ int64_t bytesToInt(uint8_t* bytes, int size) {
     return result;
 }
 
-void printStack(uint64_t *stack, uint64_t stackSize) {
+void printStack(int64_t *stack, int stackSize) {
     printf("Stack:\n");
     for(int i = 0; i < stackSize; i++) {
-        printf("\t%i, i: %i\n", stack[i], i);
+        printf("\t%d: %ld\n", i, stack[i]);
     }
 }
+
+#define parse2(f) bytesToInt(parseB(2, f), 2)
+#define parse4(f) bytesToInt(parseB(4, f), 4)
 
 #endif

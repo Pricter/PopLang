@@ -1,5 +1,8 @@
 {
     "files.associations": {
-        "utils.h": "c"
+        "utils.h": "c",
+        "compare": "cpp",
+        "timeb.h": "c",
+        "time.h": "c"
     }
 }
